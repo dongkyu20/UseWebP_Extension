@@ -1,0 +1,17 @@
+[
+    {
+      "id": 1,
+      "priority": 1,
+      "action": {
+        "type": "redirect",
+        "redirect": {
+          "regexSubstitution": "https://storage.cloud.google.com/cdn.ecarbon.kr/\\1/\\2.webp"
+        }
+      },
+      "condition": {
+        "regexFilter": "^https://([^/]+)/(.+?)(?:\\.(png|jpe?g)(?:\\?.*)?$|[_=](png|jpe?g)(?:$|\\?|&)|atchFileId=.*_(png|jpe?g)(?:$|\\?|&))",
+        "isUrlFilterCaseSensitive": false,
+        "resourceTypes": ["image"]
+      }
+    }
+  ]

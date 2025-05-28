@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "WebP Fallback Extension",
+  "version": "1.0",
+  "permissions": [
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://211.253.31.134/*",
+    "https://log.greenee.kr/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": false,
+        "path": "rules_redirect.json" 
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"], 
+      "js": ["logger.js", "content_fallback.js"],
+      "run_at": "document_start" 
+    }
+  ]
+}
