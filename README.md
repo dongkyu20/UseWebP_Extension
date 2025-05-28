@@ -1,0 +1,1 @@
+# UseWebP_Extension
