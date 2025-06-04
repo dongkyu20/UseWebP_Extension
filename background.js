@@ -4,12 +4,53 @@
 const CDN_HOST = "storage.cloud.google.com";
 const CDN_PATH_PREFIX = "/cdn.ecarbon.kr/";
 
+// 확장 프로그램 상태 (기본값: 활성화)
+let isExtensionEnabled = true;
+
+// 초기화 시 저장된 상태 불러오기
+chrome.storage.local.get({ isEnabled: true }, (result) => {
+  isExtensionEnabled = result.isEnabled;
+  console.log(`[WebP Extension] 확장 프로그램 상태: ${isExtensionEnabled ? '활성화' : '비활성화'}`);
+});
+
+// 메시지 수신 처리
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'toggleExtension') {
+    isExtensionEnabled = message.isEnabled;
+    console.log(`[WebP Extension] 확장 프로그램 상태 변경: ${isExtensionEnabled ? '활성화' : '비활성화'}`);
+    
+    // 모든 탭에 상태 변경 알림
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach(tab => {
+        // chrome:// 페이지 등은 오류가 발생할 수 있으므로 무시
+        try {
+          chrome.tabs.sendMessage(tab.id, { action: 'updateExtensionState', isEnabled: isExtensionEnabled })
+            .catch(() => {});
+        } catch (error) {}
+      });
+    });
+    
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  if (message.action === 'getExtensionState') {
+    sendResponse({ isEnabled: isExtensionEnabled });
+    return true;
+  }
+});
+
 /**
  * 원본 URL에서 CDN URL로 변환합니다.
  * @param {string} originalUrl - 원본 이미지 URL
  * @returns {string} CDN의 WebP URL
  */
 function convertToCdnUrl(originalUrl) {
+  // 확장 프로그램이 비활성화 상태면 변환하지 않음
+  if (!isExtensionEnabled) {
+    return null;
+  }
+
   try {
     // 기존 rules_redirect.json의 정규식과 동일한 패턴 사용
     const regex = /^https:\/\/([^/]+)\/(?:.+\/)?([^/\.]+)\.(png|jpg|jpeg)$/i;
@@ -51,6 +92,11 @@ async function checkUrlExists(url) {
  */
 chrome.webRequest.onBeforeRequest.addListener(
   async function(details) {
+    // 확장 프로그램이 비활성화 상태면 원본 요청 진행
+    if (!isExtensionEnabled) {
+      return { cancel: false };
+    }
+    
     // 이미 리다이렉트된 요청인지 확인 (무한 루프 방지)
     if (details.url.includes(CDN_HOST)) {
       return { cancel: false }; // 원래 요청 진행

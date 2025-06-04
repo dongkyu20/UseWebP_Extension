@@ -3,13 +3,24 @@
   "name": "WebP Fallback Extension",
   "version": "1.0",
   "permissions": [
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "storage",
+    "tabs",
+    "webRequest",
+    "webRequestBlocking"
   ],
   "host_permissions": [
     "<all_urls>",
     "https://211.253.31.134/*",
     "https://log.greenee.kr/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "WebP 변환 확장 프로그램"
+  },
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -25,5 +36,8 @@
       "js": ["logger.js", "content_fallback.js"],
       "run_at": "document_start" 
     }
-  ]
+  ],
+  "icons": {
+    "128": "images/icon128.png"
+  }
 }

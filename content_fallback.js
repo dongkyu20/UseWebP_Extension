@@ -15,6 +15,9 @@ const PERIODIC_SCAN_INTERVAL = 2000; // 2초마다 새 이미지 스캔
 const MAX_RETRY_COUNT = 2;
 // --- 설정 끝 ---
 
+// 확장 프로그램 활성화 상태 (기본값: 활성화)
+let isExtensionEnabled = true;
+
 // 확장 프로그램 동작을 제외할 도메인 목록 (SNS 및 소셜 미디어)
 const EXCLUDED_DOMAINS = [
   'instagram.com', 'www.instagram.com',
@@ -23,7 +26,8 @@ const EXCLUDED_DOMAINS = [
   'tiktok.com', 'www.tiktok.com',
   'pinterest.com', 'www.pinterest.com',
   'linkedin.com', 'www.linkedin.com',
-  'snapchat.com', 'www.snapchat.com'
+  'snapchat.com', 'www.snapchat.com',
+  'youtube.com', 'www.youtube.com'
 ];
 
 // 현재 페이지가 제외 대상인지 확인
@@ -33,6 +37,35 @@ const isExcludedDomain = () => {
     currentHost === domain || currentHost.endsWith('.' + domain)
   );
 };
+
+// 초기화 시 저장된 상태 불러오기
+chrome.storage.local.get({ isEnabled: true }, (result) => {
+  isExtensionEnabled = result.isEnabled;
+  WebPLogger.logInfo(`[WebP Extension] 확장 프로그램 상태 로드: ${isExtensionEnabled ? '활성화' : '비활성화'}`);
+  
+  // 상태 변경 시 모든 이미지 재처리
+  if (isExtensionEnabled && !isExcludedDomain()) {
+    processAllImages();
+  }
+});
+
+// 메시지 수신 처리 (백그라운드로부터의 상태 업데이트)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'updateExtensionState') {
+    const previousState = isExtensionEnabled;
+    isExtensionEnabled = message.isEnabled;
+    
+    WebPLogger.logInfo(`[WebP Extension] 확장 프로그램 상태 변경: ${isExtensionEnabled ? '활성화' : '비활성화'}`);
+    
+    // 상태가 비활성화 → 활성화로 변경된 경우 모든 이미지 재처리
+    if (!previousState && isExtensionEnabled && !isExcludedDomain()) {
+      processAllImages();
+    }
+    
+    sendResponse({ success: true });
+    return true;
+  }
+});
 
 // 현재 페이지가 제외 대상이면 스크립트 실행하지 않음
 if (isExcludedDomain()) {
@@ -51,9 +84,14 @@ if (isExcludedDomain()) {
 /**
  * 원본 URL에서 CDN URL로 변환합니다.
  * @param {string} originalUrl - 원본 이미지 URL
- * @returns {string|null} CDN의 WebP URL 또는 변환할 수 없는 경우 null
+ * @returns {string|null} CDN의 WebP URL 또는 변환 불가능 시 null
  */
 function convertToCdnUrl(originalUrl) {
+  // 확장 프로그램이 비활성화 상태면 변환하지 않음
+  if (!isExtensionEnabled) {
+    return null;
+  }
+  
   try {
     const regex = /^https:\/\/([^/]+)\/(.+?)(?:\.(png|jpe?g)(?:\?.*)?$|[_=](png|jpe?g)(?:$|\?|&)|atchFileId=.*_(png|jpe?g)(?:$|\?|&))/i;
     const match = originalUrl.match(regex);
@@ -182,6 +220,11 @@ function reconstructOriginalUrls(failedCdnUrl) {
  * @param {Event} event - 에러 이벤트.
  */
 function handleImageError(event) {
+    // 확장 프로그램이 비활성화 상태면 처리하지 않음
+    if (!isExtensionEnabled) {
+        return;
+    }
+    
     const imgElement = event.target;
     
     // 이미 진행 중인 에러 처리가 있으면 중복 처리 방지
@@ -301,8 +344,13 @@ function handleImageError(event) {
  * @param {HTMLImageElement} imgElement - 이미지 요소
  */
 function processImage(imgElement) {
+    // 확장 프로그램이 비활성화 상태면 처리하지 않음
+    if (!isExtensionEnabled) {
+        return;
+    }
+    
     try {
-        // 이미 처리된 이미지인지 확인
+        // 이미 처리된 이미지는 건너뜀
         if (imgElement.dataset.webpProcessed === 'true') {
             return;
         }
@@ -362,6 +410,11 @@ function processImage(imgElement) {
  * 페이지의 모든 이미지를 처리합니다 (새로 추가된 이미지 포함)
  */
 function processAllImages() {
+    // 확장 프로그램이 비활성화 상태면 처리하지 않음
+    if (!isExtensionEnabled) {
+        return;
+    }
+    
     const images = document.querySelectorAll('img:not([data-webp-processed="true"])');
     
     if (images.length > 0) {
@@ -381,6 +434,11 @@ function processAllImages() {
  * lazy-loading 이미지를 감지하기 위한 스크롤 이벤트 핸들러
  */
 function handleScroll() {
+    // 확장 프로그램이 비활성화 상태면 처리하지 않음
+    if (!isExtensionEnabled) {
+        return;
+    }
+    
     // 스크롤 이벤트는 자주 발생하므로 쓰로틀링 적용
     if (!handleScroll.throttleTimer) {
         handleScroll.throttleTimer = setTimeout(() => {
@@ -395,6 +453,11 @@ function handleScroll() {
  * @param {MutationRecord[]} mutations - DOM 변경 레코드
  */
 function handleDomMutations(mutations) {
+    // 확장 프로그램이 비활성화 상태면 처리하지 않음
+    if (!isExtensionEnabled) {
+        return;
+    }
+    
     let hasNewImages = false;
     
     for (const mutation of mutations) {
@@ -437,6 +500,11 @@ function handleDomMutations(mutations) {
 
 // 페이지 로드 시 기존 이미지 처리
 function processExistingImages() {
+    // 확장 프로그램이 비활성화 상태면 처리하지 않음
+    if (!isExtensionEnabled) {
+        return;
+    }
+    
     processAllImages();
     
     // 일부 이미지는 DOM에 추가된 후 src가 설정될 수 있으므로 약간의 지연 후 다시 처리
@@ -445,7 +513,11 @@ function processExistingImages() {
 }
 
 // 주기적으로 새 이미지 검사 (lazy loading, 동적 콘텐츠 처리)
-const periodicScanInterval = setInterval(processAllImages, PERIODIC_SCAN_INTERVAL);
+const periodicScanInterval = setInterval(() => {
+    if (isExtensionEnabled) {
+        processAllImages();
+    }
+}, PERIODIC_SCAN_INTERVAL);
 
 // 스크롤 이벤트 핸들러 등록 (lazy loading 이미지 감지)
 window.addEventListener('scroll', handleScroll, { passive: true });
@@ -462,34 +534,44 @@ observer.observe(document, {
 
 // 이미지 에러에 대한 이벤트 리스너 등록 (캡처 단계 사용)
 document.addEventListener('error', function(event) {
-    if (event.target.tagName === 'IMG') {
+    if (event.target.tagName === 'IMG' && isExtensionEnabled) {
         handleImageError(event);
     }
 }, true);
 
 // 페이지 로드 시 기존 이미지 처리
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', processExistingImages);
+    document.addEventListener('DOMContentLoaded', () => {
+        if (isExtensionEnabled) {
+            processExistingImages();
+        }
+    });
 } else {
-    processExistingImages();
+    if (isExtensionEnabled) {
+        processExistingImages();
+    }
 }
 
 // AJAX 이후 동적으로 로드되는 콘텐츠 처리
 window.addEventListener('load', function() {
     // 페이지가 완전히 로드된 후 모든 이미지 재처리
-    processAllImages();
+    if (isExtensionEnabled) {
+        processAllImages();
+    }
     
     // 일부 AJAX 프레임워크에서 사용하는 이벤트 감시
     if (typeof jQuery !== 'undefined') {
         jQuery(document).ajaxComplete(function() {
-            setTimeout(processAllImages, 100);
+            if (isExtensionEnabled) {
+                setTimeout(processAllImages, 100);
+            }
         });
     }
 });
 
 // 페이지 가시성 변경 시 (탭 전환 등) 처리
 document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && isExtensionEnabled) {
         processAllImages();
     }
 });
