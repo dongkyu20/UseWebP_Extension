@@ -5,24 +5,48 @@
 const CDN_HOST = "storage.cloud.google.com";
 const CDN_PATH_PREFIX = "/cdn.ecarbon.kr/";
 
-// rules.json의 regexFilter에서 (?:.+/)? 부분으로 매칭되었던 원본 경로 부분은
-// 현재의 CDN URL 구조에서는 유실되므로, 폴백 시 사용할 기본 경로를 설정합니다.
-// 예: 원본 URL이 항상 https://원본호스트/images/파일명.확장자 형태였다면 '/images/'로 설정
-// 만약 경로가 매우 다양하거나 파일명만으로 고유하게 식별 가능하다면 '/' 또는 빈 문자열로 둘 수도 있습니다.
-const ASSUMED_ORIGINAL_BASE_PATH = '/'; // 예: '/', '/images/', '/uploads/media/' 등
-
-// 원본 이미지의 확장자를 추정하여 시도할 목록입니다. (rules.json의 (png|jpg|jpeg) 참고)
+const ASSUMED_ORIGINAL_BASE_PATH = '/';
 const ASSUMED_ORIGINAL_EXTENSIONS = ['png', 'jpg', 'jpeg'];
 
 // 주기적 스캔 설정 (밀리초)
 const PERIODIC_SCAN_INTERVAL = 2000; // 2초마다 새 이미지 스캔
 
 // 최대 재시도 횟수
-const MAX_RETRY_COUNT = 3;
+const MAX_RETRY_COUNT = 2;
 // --- 설정 끝 ---
 
-// 이미지 URL -> 원본 URL 매핑 저장소 (전역 캐시)
-const imageUrlMappings = new Map();
+// 확장 프로그램 동작을 제외할 도메인 목록 (SNS 및 소셜 미디어)
+const EXCLUDED_DOMAINS = [
+  'instagram.com', 'www.instagram.com',
+  'facebook.com', 'www.facebook.com', 'm.facebook.com',
+  'twitter.com', 'www.twitter.com', 'x.com', 'www.x.com',
+  'tiktok.com', 'www.tiktok.com',
+  'pinterest.com', 'www.pinterest.com',
+  'linkedin.com', 'www.linkedin.com',
+  'snapchat.com', 'www.snapchat.com'
+];
+
+// 현재 페이지가 제외 대상인지 확인
+const isExcludedDomain = () => {
+  const currentHost = window.location.hostname.toLowerCase();
+  return EXCLUDED_DOMAINS.some(domain => 
+    currentHost === domain || currentHost.endsWith('.' + domain)
+  );
+};
+
+// 현재 페이지가 제외 대상이면 스크립트 실행하지 않음
+if (isExcludedDomain()) {
+  WebPLogger.logInfo('[WebP Extension] SNS 또는 소셜 미디어 사이트에서는 동작하지 않습니다:', window.location.hostname);
+  // 필요한 최소한의 함수만 빈 함수로 정의
+  window.convertToCdnUrl = () => null;
+  window.reconstructOriginalUrls = () => [];
+  window.handleImageError = () => {};
+  window.processImage = () => {};
+  window.processAllImages = () => {};
+  window.processExistingImages = () => {};
+} else {
+  // 이미지 URL -> 원본 URL 매핑 저장소 (전역 캐시)
+  const imageUrlMappings = new Map();
 
 /**
  * 원본 URL에서 CDN URL로 변환합니다.
@@ -31,55 +55,53 @@ const imageUrlMappings = new Map();
  */
 function convertToCdnUrl(originalUrl) {
   try {
-    // 새로운 정규식 패턴 사용 - 다양한 이미지 URL 패턴 대응
-    // 1. 일반적인 .png, .jpg, .jpeg 확장자 (쿼리 파라미터 포함 가능)
-    // 2. _png, _jpg, _jpeg 또는 =png, =jpg, =jpeg 패턴
-    // 3. atchFileId=xxx_(png|jpg|jpeg) 패턴
     const regex = /^https:\/\/([^/]+)\/(.+?)(?:\.(png|jpe?g)(?:\?.*)?$|[_=](png|jpe?g)(?:$|\?|&)|atchFileId=.*_(png|jpe?g)(?:$|\?|&))/i;
     const match = originalUrl.match(regex);
     
     if (!match) return null;
     
-    // 호스트와 파일 경로 캡처
     const [, host, path, ext1, ext2, ext3] = match;
     
-    // 실제 확장자 결정 (세 개의 캡처 그룹 중 undefined가 아닌 첫 번째 것 사용)
     const extension = ext1 || ext2 || ext3;
     
     // URL 객체 생성하여 경로와 쿼리 파라미터 분리
     let url;
     try {
       url = new URL(originalUrl);
+      console.log('debuging - URL instance:', url);
+      console.log('debuging - URL string:', url.toString());
+      console.log('debuging - pathname:', url.pathname);
+      console.log('debuging - search:', url.search);
+      console.log('debuging - hostname:', url.hostname);
     } catch (e) {
       WebPLogger.logError("[WebP Extension] URL 파싱 오류:", e);
       return null;
     }
     
-    // 쿼리 파라미터만 추출 (있는 경우)
-    const queryParams = url.search; // ?key=value 형식 또는 빈 문자열
+    const queryParams = url.search.includes('/') ? '' : url.search; // '/'가 포함된 경우 빈 문자열 반환
     
-    // 경로에서 파일명 추출
-    const pathname = url.pathname;
-    const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
-    
-    // 파일명에서 확장자 제거하여 기본 파일명 추출
-    let filenameBase = filename;
-    if (filenameBase.endsWith(`.${extension}`)) {
-      filenameBase = filenameBase.substring(0, filenameBase.lastIndexOf(`.${extension}`));
-    } else if (filenameBase.includes(`_${extension}`)) {
-      filenameBase = filenameBase.substring(0, filenameBase.lastIndexOf(`_${extension}`));
-    } else if (filenameBase.includes(`=${extension}`)) {
-      filenameBase = filenameBase.substring(0, filenameBase.lastIndexOf(`=${extension}`));
-    } else if (filenameBase.includes(`atchFileId=`) && filenameBase.includes(`_${extension}`)) {
-      const match = filenameBase.match(/atchFileId=(.*)_(?:png|jpe?g)/i);
-      if (match) {
-        filenameBase = match[1];
-      }
-    }
-    
+    // logger.js의 parseUrlDetails 함수 사용
+    const urlDetails = WebPLogger.parseUrlDetails(originalUrl);
+    const filename = urlDetails.original_filename;
+    const filenameBase = urlDetails.filename_base;
+
+    // URL 인코딩 함수: 특정 특수 문자(%, &, =)만 인코딩
+    const encodeSpecialChars = (str) => {
+      return str.replace(/%/g, '%25')
+                .replace(/\?/g, '%3F')
+                .replace(/&/g, '%26')
+                .replace(/=/g, '%3D');
+    };
+
+    // filenameBase와 queryParams 인코딩
+    const encodedFilenameBase = encodeSpecialChars(filenameBase);
+    const encodedQueryParams = queryParams ? encodeSpecialChars(queryParams) : '';
+
     // CDN URL 생성: {domain}/{original_path_query}{filename_base}.webp
     // 도메인과 파일명 사이에 '/' 추가
-    const cdnUrl = `https://${CDN_HOST}${CDN_PATH_PREFIX}${host}/${queryParams.replace('?', '')}${filenameBase}.webp`;
+    const cdnUrl = `https://${CDN_HOST}${CDN_PATH_PREFIX}${host}/${encodedQueryParams}${encodedFilenameBase}.webp`;
+
+
     
     // 매핑 저장 (양방향)
     imageUrlMappings.set(originalUrl, cdnUrl);
@@ -472,4 +494,5 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-WebPLogger.logInfo('[WebP Extension] 이미지 변환 스크립트 로드됨.');
+WebPLogger.logInfo('[WebP Extension] 이미지 변환 스크립트 로드됨. 현재 도메인:', window.location.hostname);
+} // end of else (비제외 도메인에서만 실행)

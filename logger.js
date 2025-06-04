@@ -3,8 +3,8 @@
 // 로깅 설정
 const LOGGING_ENABLED = true; // 로깅 활성화 여부
 const LOG_SERVER_URL = 'https://log.greenee.kr/log'; // 로그 서버 URL
-const LOG_BATCH_SIZE = 20; // 한번에 전송할 로그 수
-const LOG_SEND_INTERVAL = 60000; // 로그 전송 간격 (밀리초) - 1분
+const LOG_BATCH_SIZE = 5; // 한번에 전송할 로그 수
+const LOG_SEND_INTERVAL = 5000; // 로그 전송 간격 (밀리초) - 5초
 const LOG_LEVEL = 'info'; // 로그 레벨 (debug, info, warn, error)
 
 // 로그 레벨 정의
@@ -32,15 +32,178 @@ function log(level, message, data) {
   
   // 설정된 로그 레벨보다 낮은 레벨은 무시
   if (LOG_LEVELS[level] < LOG_LEVELS[LOG_LEVEL]) return;
-  
-  // 콘솔 로깅
+}
+
+/**
+ * URL 문자열에서 세부 정보를 추출하는 헬퍼 함수
+ * @param {string} urlString - URL 문자열
+ * @returns {Object} 추출된 URL 세부 정보
+ */
+function parseUrlDetails(urlString) {
+  try {
+    const url = new URL(urlString);
+    const pathname = url.pathname;
+    
+    // filename 추출 로직
+    let filename = '';
+    
+    // 전체 URL 문자열 (쿼리 포함)
+    const fullUrl = url.pathname + url.search;
+    
+    // 이미지 확장자 패턴 확인 (.jpg, .jpeg, .png로 끝나는 부분 찾기)
+    const imageExtPattern = /\.(jpe?g|png)(?=[&?#]|$)/i;
+    const extMatch = fullUrl.match(imageExtPattern);
+    
+    if (extMatch) {
+      // 확장자가 발견된 위치
+      const extIndex = extMatch.index;
+      const extLength = extMatch[0].length;
+      const endPos = extIndex + extLength;
+      
+      // 확장자 직전까지의 텍스트
+      const beforeExt = fullUrl.substring(0, extIndex);
+      
+      // 확장자 직전 텍스트에서 역방향으로 '=' 또는 '&' 찾기
+      let startPos = beforeExt.lastIndexOf('=');
+      if (startPos === -1) {
+        // '='가 없으면 '&'도 확인
+        startPos = beforeExt.lastIndexOf('&');
+        if (startPos === -1) {
+          startPos = beforeExt.lastIndexOf('#');
+          if (startPos === -1) {
+            startPos = beforeExt.lastIndexOf('/');
+          }
+        }
+      }
+      
+      // 구분자 다음 위치부터 (구분자가 없으면 0부터) 확장자 끝까지 추출
+      filename = fullUrl.substring(startPos + 1, endPos);
+    } else {
+      // 이미지 확장자를 찾지 못한 경우 기본 방식 사용
+      filename = pathname.substring(pathname.lastIndexOf('/') + 1);
+    }
+    
+    let filenameBase = filename;
+    const lastDotIndex = filename.lastIndexOf('.');
+    // Ensure dot is not the first char and exists to correctly extract base name
+    if (lastDotIndex > 0) { 
+      filenameBase = filename.substring(0, lastDotIndex);
+    }
+
+    return {
+      domain: url.hostname,
+      original_filename: filename,
+      filename_base: filenameBase,
+      origin_url: url.pathname + url.search, // 전체 URL 포함
+      original_path_query: url.search, // '/'가 포함된 경우 빈 문자열 반환
+    };
+  } catch (e) {
+    // URL 파싱 실패 시 (예: 데이터 URI 또는 유효하지 않은 URL)
+    console.error('[WebP Extension] URL 파싱 오류:', e, urlString);
+    // 구조화된 필드에 빈 문자열 반환, 컨텍스트를 위해 원본 문자열 유지
+    return {
+      domain: '',
+      original_filename: '',
+      filename_base: '',
+      origin_url: url.pathname || '',
+      original_path_query: '',
+    };
+  }
+}
+
+/**
+ * 로그 엔트리 생성 함수
+ * @param {string} level - 로그 레벨
+ * @param {string} message - 로그 메시지
+ * @param {string} originalUrl - 원본 URL
+ * @param {string} cdnUrl - CDN URL (선택 사항)
+ * @param {string} status - 상태 코드 (선택 사항)
+ * @returns {Object} 로그 엔트리 객체
+ */
+function createLogEntry(level, message, originalUrl, cdnUrl = '', status = '') {
   const timestamp = new Date().toISOString();
-  const prefix = `[WebP Extension][${level.toUpperCase()}]`;
   
-  if (data) {
-    console[level](`${prefix} ${timestamp} - ${message}`, data);
-  } else {
-    console[level](`${prefix} ${timestamp} - ${message}`);
+  // URL 세부 정보 추출
+  const originalUrlDetails = originalUrl ? parseUrlDetails(originalUrl) : {
+    domain: '',
+    original_filename: '',
+    filename_base: '',
+    origin_url: '',
+    original_path_query: '',
+  };
+  
+  // CDN URL이 제공된 경우 해당 세부 정보도 추출
+  const cdnUrlDetails = cdnUrl ? parseUrlDetails(cdnUrl) : {
+    domain: '',
+    original_filename: '',
+    filename_base: '',
+    origin_url: '',
+    original_path_query: '',
+  };
+  
+  // 로그 엔트리 생성 (서버에서 기대하는 구조에 맞춤)
+  return {
+    level: level || 'INFO',
+    message: message || '',
+    origin_url: originalUrlDetails.origin_url || cdnUrlDetails.origin_url || '',
+    domain: originalUrlDetails.domain || cdnUrlDetails.domain || '',
+    original_filename: originalUrlDetails.original_filename || cdnUrlDetails.original_filename || '',
+    filename_base: originalUrlDetails.filename_base || cdnUrlDetails.filename_base || '',
+    original_path_query: originalUrlDetails.original_path_query || cdnUrlDetails.original_path_query || '',
+    timestamp: timestamp,
+    url: window.location.href, // 현재 페이지 URL
+    status: status // 상태 정보
+  };
+}
+
+/**
+ * 실패한 이미지 URL을 로그에 추가합니다.
+ * @param {string} cdnUrl - 실패한 CDN URL
+ * @param {string} originalUrl - 원본 URL (있는 경우)
+ * @param {string} status - 상태 (예: 'cdn_not_found', 'fallback_success', 'fallback_failed')
+ */
+function logFailedImage(cdnUrl, originalUrl, status) {
+  if (!LOGGING_ENABLED) return;
+  
+  // 이미 로깅된 URL인지 확인 (중복 방지)
+  const logKey = `${cdnUrl}|${status}`;
+  if (loggedUrls.has(logKey)) return;
+  
+  let level = 'INFO';
+  let message = '';
+
+  switch (status) {
+    case 'cdn_not_found':
+      level = 'WARN';
+      message = `CDN image not found. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+      break;
+    case 'cdn_load_success':
+      level = 'SUCCESS';
+      message = `CDN WebP image loaded successfully. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+      break;
+    case 'fallback_success':
+      level = 'FALLBACK'; 
+      message = `Fallback successful. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+      break;
+    case 'fallback_failed':
+      level = 'ERROR';
+      message = `Fallback failed. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+      break;
+    default:
+      level = 'INFO';
+      message = `Image event: ${status}. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+  }
+  
+  // 로그 엔트리 생성
+  const logEntry = createLogEntry(level, message, originalUrl, cdnUrl, status);
+  
+  // 로그 배열에 추가
+  failedImageLogs.push(logEntry);
+  loggedUrls.add(logKey);
+  
+  // 로그 배열이 일정 크기에 도달하면 즉시 전송
+  if (failedImageLogs.length >= LOG_BATCH_SIZE) {
+    sendPendingLogs();
   }
 }
 
@@ -59,6 +222,37 @@ async function sendLogsToServer(logs) {
     let successCount = 0;
     
     for (const logEntry of logs) {
+      // 필수 필드가 누락되었는지 확인
+      const requiredFields = ['level', 'message', 'origin_url', 'domain', 'timestamp'];
+      const missingFields = requiredFields.filter(field => !logEntry[field]);
+      
+      if (missingFields.length > 0) {
+        console.warn(`필수 필드 누락됨: ${missingFields.join(', ')}`);
+        // 누락된 필드가 있으면 기본값 설정
+        missingFields.forEach(field => {
+          switch(field) {
+            case 'level':
+              logEntry.level = 'INFO';
+              break;
+            case 'message':
+              logEntry.message = 'No message provided';
+              break;
+            case 'origin_url':
+              logEntry.origin_url = window.location.href;
+              break;
+            case 'domain':
+              logEntry.domain = window.location.hostname;
+              break;
+            case 'timestamp':
+              logEntry.timestamp = new Date().toISOString();
+              break;
+          }
+        });
+      }
+      
+      // 전송 전 최종 확인
+      console.log('전송할 로그 데이터:', JSON.stringify(logEntry));
+      
       const response = await fetch(LOG_SERVER_URL, {
         method: 'POST',
         headers: {
@@ -71,6 +265,13 @@ async function sendLogsToServer(logs) {
         successCount++;
       } else {
         log('warn', `로그 전송 실패: ${response.status} ${response.statusText}`);
+        // 응답 내용도 확인
+        try {
+          const errorText = await response.text();
+          console.error('서버 응답:', errorText);
+        } catch (e) {
+          console.error('응답 내용을 읽을 수 없음');
+        }
       }
     }
     
@@ -84,120 +285,6 @@ async function sendLogsToServer(logs) {
   } catch (error) {
     log('error', '로그 전송 중 오류 발생:', error);
     return false;
-  }
-}
-
-/**
- * 실패한 이미지 URL을 로그에 추가합니다.
- * @param {string} cdnUrl - 실패한 CDN URL
- * @param {string} originalUrl - 원본 URL (있는 경우)
- * @param {string} status - 상태 (예: 'cdn_not_found', 'fallback_success', 'fallback_failed')
- */
-function logFailedImage(cdnUrl, originalUrl, status) {
-  if (!LOGGING_ENABLED) return;
-  
-  // 이미 로깅된 URL인지 확인 (중복 방지)
-  const logKey = `${cdnUrl}|${status}`;
-  if (loggedUrls.has(logKey)) return;
-  
-  // CDN URL 정보 추출
-  const cdnUrlDetails = parseUrlDetails(cdnUrl);
-  
-  // 원본 URL 정보 추출 (originalUrl이 제공된 경우)
-  // originalUrl이 없으면 현재 페이지 URL에서 도메인 추출
-  let originalUrlDetails = { domain: '', original_filename: '', filename_base: '', origin_url: '', original_path_query: '' };
-  
-  if (originalUrl) {
-    originalUrlDetails = parseUrlDetails(originalUrl);
-  } else {
-    // originalUrl이 없는 경우 현재 페이지 URL에서 도메인 추출
-    try {
-      const currentUrl = new URL(window.location.href);
-      originalUrlDetails.domain = currentUrl.hostname;
-    } catch (e) {
-      console.error('[WebP Extension] 현재 페이지 URL 파싱 오류:', e);
-    }
-  }
-  
-  let level = 'INFO';
-  let message = '';
-
-  switch (status) {
-    case 'cdn_not_found':
-      level = 'WARN';
-      message = `CDN image not found. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
-    case 'cdn_load_success':
-      level = 'SUCCESS';
-      message = `CDN WebP image loaded successfully. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
-    case 'fallback_success':
-      level = 'SUCCESS'; // SUCCESS로 변경하여 서버에서 리덕션 처리가 진행되도록 함
-      message = `Fallback successful. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
-    case 'fallback_failed':
-      level = 'ERROR';
-      message = `Fallback failed. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
-    default:
-      level = 'INFO';
-      message = `Image event: ${status}. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-  }
-  
-  // 로그 데이터 생성 (LogEntry 형식)
-  const logEntry = {
-    level: level,
-    message: message,
-    // 원본 웹페이지 URL 정보 사용
-    origin_url: originalUrlDetails.origin_url || cdnUrlDetails.origin_url, 
-    domain: originalUrlDetails.domain || cdnUrlDetails.domain,         
-    original_filename: originalUrlDetails.original_filename || cdnUrlDetails.original_filename,
-    filename_base: originalUrlDetails.filename_base || cdnUrlDetails.filename_base,
-    original_path_query: originalUrlDetails.original_path_query || cdnUrlDetails.original_path_query,
-    timestamp: new Date().toISOString(),
-  };
-  
-  // 로그 배열에 추가
-  failedImageLogs.push(logEntry);
-  loggedUrls.add(logKey);
-  
-  // 로그 배열이 일정 크기에 도달하면 즉시 전송
-  if (failedImageLogs.length >= LOG_BATCH_SIZE) {
-    sendPendingLogs();
-  }
-}
-
-// Helper function to extract details from a URL string
-function parseUrlDetails(urlString) {
-  try {
-    const url = new URL(urlString);
-    const pathname = url.pathname;
-    const filename = pathname.substring(pathname.lastIndexOf('/') + 1);
-    
-    let filenameBase = filename;
-    const lastDotIndex = filename.lastIndexOf('.');
-    // Ensure dot is not the first char and exists to correctly extract base name
-    if (lastDotIndex > 0) { 
-      filenameBase = filename.substring(0, lastDotIndex);
-    }
-
-    return {
-      domain: url.hostname,
-      original_filename: filename,
-      filename_base: filenameBase,
-      origin_url: pathname,  // 경로 부분만 포함
-      original_path_query: url.search,  // 쿼리 파라미터만 포함 (?key=value&key2=value2 형식 또는 빈 문자열)
-    };
-  } catch (e) {
-    // If URL parsing fails (e.g. for data URIs, or if urlString is not a valid URL)
-    // Return empty strings for structured fields, keep original string for path_query for context
-    return {
-      domain: '',
-      original_filename: '',
-      filename_base: '',
-      origin_url: '',
-      original_path_query: '',
-    };
   }
 }
 
@@ -227,6 +314,9 @@ async function sendPendingLogs() {
  */
 function logInfo(message, data) {
   log('info', message, data);
+  
+  // 간단한 정보 로그는 서버로 전송하지 않음
+  // 필요하다면 여기에 서버 전송 코드 추가
 }
 
 /**
@@ -276,5 +366,7 @@ window.WebPLogger = {
   logInfo,
   logWarn,
   logError,
-  logDebug
+  logDebug,
+  createLogEntry, // 추가: 로그 엔트리 생성 함수 외부 노출
+  parseUrlDetails // 추가: URL 세부 정보 추출 함수 외부 노출
 };
