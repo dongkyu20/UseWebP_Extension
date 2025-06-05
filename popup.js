@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', async function() {
   
   // 오류 신고 기능 초기화
   initErrorReporting();
+  
+  // 도메인 관리 기능 초기화
+  initDomainManager();
 });
 
 // UI 상태 업데이트 함수
@@ -157,4 +160,167 @@ function initErrorReporting() {
       reportStatus.className = 'report-status error';
     }
   });
+}
+
+// 도메인 관리 기능 초기화
+function initDomainManager() {
+  const addDomainButton = document.getElementById('addDomain');
+  const newDomainInput = document.getElementById('newDomain');
+  const excludedDomainsList = document.getElementById('excludedDomainsList');
+  
+  // 제외 도메인 목록을 저장소에서 로드
+  loadExcludedDomains();
+  
+  // 새 도메인 추가 버튼 이벤트 핸들러
+  addDomainButton.addEventListener('click', async () => {
+    const domain = newDomainInput.value.trim().toLowerCase();
+    
+    // 입력 검증
+    if (!domain) {
+      return; // 빈 값이면 무시
+    }
+    
+    // 기본 도메인 형식 검증 (간단한 형식 검증)
+    if (!isValidDomain(domain)) {
+      alert('유효한 도메인을 입력해주세요. (예: example.com)');
+      return;
+    }
+    
+    // 저장소에서 현재 제외 도메인 목록 가져오기
+    const { excludedDomains = [] } = await chrome.storage.local.get({ excludedDomains: [] });
+    
+    // 이미 목록에 있는지 확인
+    if (excludedDomains.includes(domain)) {
+      alert('이미 제외 목록에 있는 도메인입니다.');
+      return;
+    }
+    
+    // 현재 도메인 목록에 추가
+    const updatedDomains = [...excludedDomains, domain];
+    
+    // 저장소에 저장
+    await chrome.storage.local.set({ excludedDomains: updatedDomains });
+    
+    // UI 업데이트
+    renderExcludedDomains(updatedDomains);
+    
+    // 입력 필드 초기화
+    newDomainInput.value = '';
+    
+    // 콘텐츠 스크립트에 업데이트된 목록 전송
+    updateContentScripts(updatedDomains);
+  });
+  
+  // 엔터 키로도 도메인 추가 가능하게 함
+  newDomainInput.addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      addDomainButton.click();
+    }
+  });
+}
+
+// 도메인 형식 유효성 검사 (간단한 검증)
+function isValidDomain(domain) {
+  // 최소한 하나의 점과 문자를 포함하고 있는지 확인
+  return /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/.test(domain);
+}
+
+// 제외 도메인 목록 불러오기
+async function loadExcludedDomains() {
+  try {
+    // 저장소에서 사용자 지정 제외 도메인 가져오기
+    const { excludedDomains = [] } = await chrome.storage.local.get({ excludedDomains: [] });
+    
+    // UI 업데이트
+    renderExcludedDomains(excludedDomains);
+  } catch (error) {
+    console.error('도메인 목록을 불러오는 중 오류 발생:', error);
+  }
+}
+
+// 제외 도메인 목록 UI 렌더링
+function renderExcludedDomains(domains) {
+  const excludedDomainsList = document.getElementById('excludedDomainsList');
+  
+  // 기존 목록 초기화
+  excludedDomainsList.innerHTML = '';
+  
+  // 도메인이 없는 경우
+  if (domains.length === 0) {
+    const emptyItem = document.createElement('li');
+    emptyItem.textContent = '사용자 지정 제외 도메인이 없습니다.';
+    emptyItem.style.fontStyle = 'italic';
+    emptyItem.style.color = '#777';
+    excludedDomainsList.appendChild(emptyItem);
+    return;
+  }
+  
+  // 각 도메인에 대한 UI 요소 생성
+  domains.forEach(domain => {
+    const li = document.createElement('li');
+    li.className = 'domain-item';
+    
+    const domainText = document.createElement('span');
+    domainText.className = 'domain-text';
+    domainText.textContent = domain;
+    
+    const removeButton = document.createElement('button');
+    removeButton.className = 'remove-domain';
+    removeButton.textContent = '삭제';
+    removeButton.addEventListener('click', () => removeDomain(domain));
+    
+    li.appendChild(domainText);
+    li.appendChild(removeButton);
+    excludedDomainsList.appendChild(li);
+  });
+}
+
+// 도메인 삭제 처리
+async function removeDomain(domainToRemove) {
+  try {
+    // 저장소에서 현재 목록 가져오기
+    const { excludedDomains = [] } = await chrome.storage.local.get({ excludedDomains: [] });
+    
+    // 목록에서 도메인 제거
+    const updatedDomains = excludedDomains.filter(domain => domain !== domainToRemove);
+    
+    // 저장소에 업데이트된 목록 저장
+    await chrome.storage.local.set({ excludedDomains: updatedDomains });
+    
+    // UI 업데이트
+    renderExcludedDomains(updatedDomains);
+    
+    // 콘텐츠 스크립트에 업데이트된 목록 전송
+    updateContentScripts(updatedDomains);
+    
+  } catch (error) {
+    console.error('도메인을 삭제하는 중 오류 발생:', error);
+  }
+}
+
+// 콘텐츠 스크립트에 업데이트된 도메인 목록 전송
+async function updateContentScripts(domains) {
+  try {
+    // 모든 현재 탭에 메시지 전송
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      try {
+        await chrome.tabs.sendMessage(tab.id, { 
+          action: 'updateExcludedDomains', 
+          excludedDomains: domains 
+        });
+      } catch (error) {
+        // 일부 탭은 콘텐츠 스크립트를 실행하지 않을 수 있으므로 오류 무시
+      }
+    }
+    
+    // 백그라운드 스크립트에도 알림
+    chrome.runtime.sendMessage({ 
+      action: 'updateExcludedDomains', 
+      excludedDomains: domains 
+    });
+    
+  } catch (error) {
+    console.error('콘텐츠 스크립트 업데이트 중 오류 발생:', error);
+  }
 }

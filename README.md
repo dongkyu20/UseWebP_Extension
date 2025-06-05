@@ -29,3 +29,9 @@
 로그 데이터는 `logger.js`에 정의된 URL로 전송됩니다. 기본값은 다음과 같습니다:
 ```javascript
 const LOG_SERVER_URL = '[https://log.greenee.kr/log';](https://log.greenee.kr/log';)
+
+
+### 추후 개발 예정
+
+- 사용자 ID 저장, 절약한 용량 기록 및 차트화
+- 사용자간 비교 기능
