@@ -177,18 +177,18 @@ function logFailedImage(cdnUrl, originalUrl, status) {
       level = 'WARN';
       message = `CDN image not found. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
       break;
-    case 'cdn_load_success':
-      level = 'SUCCESS';
-      message = `CDN WebP image loaded successfully. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
-    case 'fallback_success':
-      level = 'FALLBACK'; 
-      message = `Fallback successful. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
-    case 'fallback_failed':
-      level = 'ERROR';
-      message = `Fallback failed. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
-      break;
+    // case 'cdn_load_success':
+    //   level = 'SUCCESS';
+    //   message = `CDN WebP image loaded successfully. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+    //   break;
+    // case 'fallback_success':
+    //   level = 'FALLBACK'; 
+    //   message = `Fallback successful. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+    //   break;
+    // case 'fallback_failed':
+    //   level = 'ERROR';
+    //   message = `Fallback failed. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;
+    //   break;
     default:
       level = 'INFO';
       message = `Image event: ${status}. Original: ${originalUrl || 'unknown'}. Page: ${window.location.href}`;

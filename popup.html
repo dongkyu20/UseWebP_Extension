@@ -3,148 +3,105 @@
 <head>
   <meta charset="UTF-8">
   <title>WebP 변환 확장 프로그램</title>
-  <style>
-    body {
-      width: 300px;
-      padding: 15px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-    .header img {
-      width: 24px;
-      height: 24px;
-      margin-right: 10px;
-    }
-    .header h1 {
-      font-size: 18px;
-      margin: 0;
-    }
-    .container {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-    }
-    .switch-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 50px;
-      height: 24px;
-    }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 24px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 16px;
-      width: 16px;
-      left: 4px;
-      bottom: 4px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-    input:checked + .slider {
-      background-color: #2196F3;
-    }
-    input:checked + .slider:before {
-      transform: translateX(26px);
-    }
-    .status {
-      margin-top: 10px;
-      padding: 8px;
-      border-radius: 4px;
-      text-align: center;
-      font-size: 14px;
-      transition: background-color 0.3s;
-    }
-    .status.enabled {
-      background-color: #e8f5e9;
-      color: #2e7d32;
-    }
-    .status.disabled {
-      background-color: #ffebee;
-      color: #c62828;
-    }
-    .divider {
-      height: 1px;
-      background-color: #e0e0e0;
-      margin: 10px 0;
-    }
-    .exclusion-list {
-      font-size: 12px;
-      color: #666;
-    }
-    .exclusion-list h3 {
-      font-size: 14px;
-      margin: 0 0 5px 0;
-    }
-    .exclusion-list ul {
-      margin: 0;
-      padding-left: 20px;
-    }
-    .footer {
-      margin-top: 15px;
-      font-size: 12px;
-      color: #666;
-      text-align: center;
-    }
-  </style>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="header">
+    <img src="images/icon128.png" width="24" height="24">
     <h1>WebP 변환 확장 프로그램</h1>
   </div>
   
-  <div class="container">
-    <div class="switch-container">
-      <span>확장 프로그램 활성화</span>
-      <label class="switch">
-        <input type="checkbox" id="extensionToggle">
-        <span class="slider"></span>
-      </label>
+  <!-- 탭 메뉴 -->
+  <div class="tabs">
+    <button class="tab-button active" data-tab="main">메인</button>
+    <button class="tab-button" data-tab="troubleshoot">오류 해결</button>
+    <button class="tab-button" data-tab="report">오류 신고</button>
+  </div>
+  
+  <!-- 탭 콘텐츠 영역 -->
+  <div class="tab-content">
+    <!-- 메인 탭 -->
+    <div id="main" class="tab-pane active">
+      <div class="container">
+        <div class="switch-container">
+          <span>확장 프로그램 활성화</span>
+          <label class="switch">
+            <input type="checkbox" id="extensionToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+        
+        <div id="status" class="status disabled">
+          현재 비활성화 상태입니다
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="exclusion-list">
+          <h3>다음 사이트에서는 자동으로 비활성화됩니다:</h3>
+          <ul>
+            <li>Instagram, Facebook</li>
+            <li>Twitter(X), TikTok</li>
+            <li>Pinterest, LinkedIn, Snapchat, YouTube</li>
+          </ul>
+        </div>
+      </div>
     </div>
     
-    <div id="status" class="status disabled">
-      현재 비활성화 상태입니다
+    <!-- 오류 해결 탭 -->
+    <div id="troubleshoot" class="tab-pane">
+      <div class="container">
+        <div class="troubleshoot-section">
+          <h3>자주 발생하는 오류 및 해결법</h3>
+          
+          <div class="error-item">
+            <h4>이미지 로딩에 실패하는 경우</h4>
+            <p>1. 크롬 브라우저에서 프로필 로그인이 되어있는 상태인지 확인해주세요.</p>
+            <p>2. 브라우저 캐시를 삭제해보세요. (설정 > 개인정보 보호 및 보안 > 인터넷 사용 기록 삭제)</p>
+            <p>3. 미리 변환된 파일이 없는 경우, 서버에서 파일을 변환하는데 시간이 소요될 수 있습니다. 잠시 후 다시 시도해보세요.</p>
+          </div>
+          
+          <div class="error-item">
+            <h4>특정 사이트에서 동작하지 않는 경우</h4>
+            <p>1. 해당 사이트가 제외 목록에 포함되어 있는지 확인하세요.</p>
+            <p>2. 사이트의 이미지 URL 형식이 지원되지 않을 수 있습니다.</p>
+          </div>
+        </div>
+      </div>
     </div>
     
-    <div class="divider"></div>
-    
-    <div class="exclusion-list">
-      <h3>다음 사이트에서는 자동으로 비활성화됩니다:</h3>
-      <ul>
-        <li>Instagram, Facebook</li>
-        <li>Twitter(X), TikTok</li>
-        <li>Pinterest, LinkedIn, Snapchat</li>
-      </ul>
+    <!-- 오류 신고 탭 -->
+    <div id="report" class="tab-pane">
+      <div class="container">
+        <div class="troubleshoot-section">
+          <h3>오류 신고하기</h3>
+          <p>문제가 계속되면 아래 폼을 통해 개발자에게 직접 신고해주세요:</p>
+          <form id="reportForm">
+            <div class="form-group">
+              <label for="problemUrl">문제가 발생한 URL:</label>
+              <input type="text" id="problemUrl" placeholder="https://example.com/page" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="problemDescription">오류 설명 (선택사항):</label>
+              <textarea id="problemDescription" rows="3" placeholder="어떤 문제가 발생했는지 간단히 설명해주세요." class="form-control"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="contactEmail">이메일 (답변을 원하시면 입력해주세요):</label>
+              <input type="email" id="contactEmail" placeholder="your-email@example.com" class="form-control">
+            </div>
+            <button type="submit" id="submitReport" class="button primary">신고하기</button>
+          </form>
+          <div id="reportStatus" class="report-status"></div>
+        </div>
+      </div>
     </div>
   </div>
   
   <div class="footer">
-    <p>WebP 변환 확장 프로그램 v1.0</p>
+    <p>B.E.F</p>
+    <p>Be Eco Friend로 할까요?</p>
+    <p>Best Eco Friend??? Green-E?????</p>
+    (version 1.0)
   </div>
 
   <script src="popup.js"></script>

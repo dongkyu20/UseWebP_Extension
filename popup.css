@@ -1,0 +1,292 @@
+body {
+  width: 300px;
+  padding: 15px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+  margin: 0;
+}
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #5cc788;
+  padding-bottom: 10px;
+}
+.header img {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+}
+.header h1 {
+  font-size: 18px;
+  margin: 0;
+  color: #66b168;
+}
+
+/* 탭 스타일 */
+.tabs {
+  display: flex;
+  background-color: #222;
+  margin: 0 -15px 15px;
+}
+.tab-button {
+  flex: 1;
+  background-color: transparent;
+  border: none;
+  padding: 10px;
+  color: #aaa;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+  position: relative; /* 구분선 위치 설정을 위해 추가 */
+}
+
+/* 구분선 추가 (마지막 버튼 제외) */
+.tab-button:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 15%;
+  height: 70%;
+  width: 1px;
+  background-color: #9d9d9d;
+}
+.tab-button:hover {
+  background-color: #333;
+  color: #fff;
+}
+.tab-button.active {
+  color: #2ecc71;
+  background-color: #515151;
+  border-bottom: 3px solid #2ecc71;
+  margin-bottom: -2px;
+}
+.tab-content {
+  position: relative;
+}
+.tab-pane {
+  display: none;
+}
+.tab-pane.active {
+  display: block;
+  animation: fadeIn 0.3s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.switch-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #444;
+  transition: .4s;
+  border-radius: 24px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: #2ecc71;
+}
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+.status {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+.status.enabled {
+  background-color: #1e3a2b;
+  color: #66b168;
+}
+.status.disabled {
+  background-color: #3a1e1e;
+  color: #e74c3c;
+}
+.divider {
+  height: 1px;
+  background-color: #333;
+  margin: 10px 0;
+}
+.exclusion-list {
+  font-size: 12px;
+  color: #aaa;
+  background-color: #222;
+  padding: 10px;
+  border-radius: 4px;
+}
+.exclusion-list h3 {
+  font-size: 14px;
+  margin: 0 0 5px 0;
+  color: #66b168;
+}
+.exclusion-list ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.exclusion-list li {
+  margin-bottom: 3px;
+}
+
+/* 오류 해결 탭 스타일 */
+.troubleshoot-section {
+  background-color: #222;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid #2ecc70;
+}
+.troubleshoot-section h3 {
+  color: #66b168;
+  font-size: 14px;
+  margin: 0 0 10px 0;
+}
+.error-item {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #333;
+}
+.error-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.error-item h2 {
+  color: #eb6523;
+  margin: 0 0 5px 0;
+  font-size: 16px;
+}
+.error-item h4 {
+  color: #e67e22;
+  margin: 0 0 5px 0;
+  font-size: 13px;
+}
+.error-item p {
+  margin: 5px 0;
+  font-size: 12px;
+  color: #bbb;
+}
+
+.footer {
+  margin-top: 15px;
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  border-top: 1px solid #333;
+  padding-top: 10px;
+}
+
+/* 오류 신고 폼 스타일 */
+.form-group {
+  margin-bottom: 10px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 3px;
+  color: #bbb;
+}
+
+.form-control {
+  width: 100%;
+  padding: 6px 8px;
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #2ecc71;
+  box-shadow: 0 0 3px rgba(46, 204, 113, 0.5);
+}
+
+textarea.form-control {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.button.primary {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.button.primary:hover {
+  background-color: #27ae60;
+}
+
+.report-status {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.report-status.error {
+  background-color: #3a1e1e;
+  color: #e74c3c;
+}
+
+.report-status.success {
+  background-color: #1e3a2b;
+  color: #66b168;
+}
+
+.report-status.sending {
+  background-color: #2c3e50;
+  color: #3498db;
+}
